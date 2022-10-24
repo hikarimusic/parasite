@@ -1,2 +1,2 @@
 # PARASIGHT
-Detection and classification of parasitic eggs in fecal microscopy using YOLOv4 model
+Detection and classification of parasitic eggs in whole-slide fecal microscopy using multi-scale sliding YOLO model
