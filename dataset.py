@@ -177,26 +177,22 @@ def calc_anchors():
     anchors = np.rint(kmeans.cluster_centers_).astype(int).tolist()    
     anchors = sorted(anchors, key=lambda x: min(x[0], x[1]))
     print(anchors)
+
     # [[28, 28], [46, 45], [63, 66], [99, 74], [78, 115], [131, 110], [147, 161], [174, 269], [254, 175]]
 
 
 if __name__ == '__main__':
-
-    calc_anchors()
-    '''
     train_dataset = Yolo_Dataset("train")
     test_dataset =  Yolo_Dataset("test")
-
     for i in range(10):
         img, lbl = train_dataset.__getitem__(random.randrange(0, 11000))
         img = draw_boxes(img, lbl, tensor=True)
         show_image(img)    
-
     for i in range(10):
         img, lbl = test_dataset.__getitem__(random.randrange(0, 2200))
         img = draw_boxes(img, lbl, tensor=True)
         show_image(img)    
-    '''
+
 
 
 

@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from torchsummary import summary
 
 
 class Conv_Bn_Act(nn.Module):
@@ -20,7 +21,7 @@ class Conv_Bn_Act(nn.Module):
 
 
 class Res(nn.Module):
-    def __init__(self, channels, down1 = False):
+    def __init__(self, channels, down1=False):
         super().__init__()
         if down1 == True:
             self.conv1 = Conv_Bn_Act(channels, channels//2, 1, 1, "mish")
@@ -101,15 +102,15 @@ class Neck_SPP(nn.Module):
     
     def forward(self, x):
         x1 = self.conv1(x)
-        x2 = self.conv1(x1)
-        x3 = self.conv1(x2)
+        x2 = self.conv2(x1)
+        x3 = self.conv3(x2)
         x4 = self.maxpool1(x3)
         x5 = self.maxpool2(x3)
         x6 = self.maxpool3(x3)
         x7 = torch.cat((x3, x4, x5, x6), 1)
-        x8 = self.conv1(x7)
-        x9 = self.conv1(x8)
-        x10 = self.conv1(x9)
+        x8 = self.conv4(x7)
+        x9 = self.conv5(x8)
+        x10 = self.conv6(x9)
         return x10
 
 
@@ -117,7 +118,7 @@ class Neck_FPN(nn.Module):
     def __init__(self):
         super().__init__()
         self.conv1_1 = Conv_Bn_Act(512, 256, 1, 1, "leaky")
-        self.upsample1 = nn.Upsample(2)
+        self.upsample1 = nn.Upsample(scale_factor=2)
         self.conv1_2 = Conv_Bn_Act(512, 256, 1, 1, "leaky")
         self.conv1_3 = Conv_Bn_Act(512, 256, 1, 1, "leaky")
         self.conv1_4 = Conv_Bn_Act(256, 512, 3, 1, "leaky")
@@ -125,7 +126,7 @@ class Neck_FPN(nn.Module):
         self.conv1_6 = Conv_Bn_Act(256, 512, 3, 1, "leaky")
         self.conv1_7 = Conv_Bn_Act(512, 256, 1, 1, "leaky")
         self.conv2_1 = Conv_Bn_Act(256, 128, 1, 1, "leaky")
-        self.upsample2 = nn.Upsample(2)
+        self.upsample2 = nn.Upsample(scale_factor=2)
         self.conv2_2 = Conv_Bn_Act(256, 128, 1, 1, "leaky")
         self.conv2_3 = Conv_Bn_Act(256, 128, 1, 1, "leaky")
         self.conv2_4 = Conv_Bn_Act(128, 256, 3, 1, "leaky")
@@ -134,10 +135,10 @@ class Neck_FPN(nn.Module):
         self.conv2_7 = Conv_Bn_Act(256, 128, 1, 1, "leaky")
     
     def forward(self, xa, xb, xc):
-        x1 = self.conv1_1(xa)
+        x1 = self.conv1_1(xc)
         x2 = self.upsample1(x1)
         x3 = self.conv1_2(xb)
-        x4 = torch.cat((x2, x3), 1)
+        x4 = torch.cat((x3, x2), 1)
         x5 = self.conv1_3(x4)
         x6 = self.conv1_4(x5)
         x7 = self.conv1_5(x6)
@@ -145,14 +146,14 @@ class Neck_FPN(nn.Module):
         x9 = self.conv1_7(x8)
         x10 = self.conv2_1(x9)
         x11 = self.upsample2(x10)
-        x12 = self.conv2_2(xc)
-        x13 = torch.cat((x11, x12), 1)
+        x12 = self.conv2_2(xa)
+        x13 = torch.cat((x12, x11), 1)
         x14 = self.conv2_3(x13)
         x15 = self.conv2_4(x14)
         x16 = self.conv2_5(x15)
         x17 = self.conv2_6(x16)
         x18 = self.conv2_7(x17)
-        return xa, x9, x18
+        return x18, x9, xc
 
 
 class Neck_PAN(nn.Module):
@@ -172,7 +173,7 @@ class Neck_PAN(nn.Module):
         self.conv2_6 = Conv_Bn_Act(1024, 512, 1, 1, "leaky")
 
     def forward(self, xa, xb, xc):
-        x1 = self.conv1_1(xc)
+        x1 = self.conv1_1(xa)
         x2 = torch.cat((x1, xb), 1)
         x3 = self.conv1_2(x2)
         x4 = self.conv1_3(x3)
@@ -181,12 +182,12 @@ class Neck_PAN(nn.Module):
         x7 = self.conv1_6(x6)
         x8 = self.conv2_1(x7)
         x9 = torch.cat((x8, xc), 1)
-        x10 = self.conv1_2(x9)
-        x11 = self.conv1_3(x10)
-        x12 = self.conv1_4(x11)
-        x13 = self.conv1_5(x12)
-        x14 = self.conv1_6(x13)
-        return x14, x7, xc
+        x10 = self.conv2_2(x9)
+        x11 = self.conv2_3(x10)
+        x12 = self.conv2_4(x11)
+        x13 = self.conv2_5(x12)
+        x14 = self.conv2_6(x13)
+        return xa, x7, x14
 
 
 class Neck(nn.Module):
@@ -197,7 +198,7 @@ class Neck(nn.Module):
         self.pan = Neck_PAN()
 
     def forward(self, xa, xb, xc):
-        xa = self.spp(xa)
+        xc = self.spp(xc)
         xa, xb, xc = self.fpn(xa, xb, xc)
         xa, xb, xc = self.pan(xa, xb, xc)
         return xa, xb, xc
@@ -206,20 +207,20 @@ class Neck(nn.Module):
 class Head(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1_1 = Conv_Bn_Act(512, 1024, 3, 1, "leaky")
-        self.conv1_2 = nn.Conv2d(1024, 255, 1, 1)
+        self.conv1_1 = Conv_Bn_Act(128, 256, 3, 1, "leaky")
+        self.conv1_2 = nn.Conv2d(256, 255, 1, 1)
         self.conv2_1 = Conv_Bn_Act(256, 512, 3, 1, "leaky")
         self.conv2_2 = nn.Conv2d(512, 255, 1, 1)
-        self.conv3_1 = Conv_Bn_Act(128, 256, 3, 1, "leaky")
-        self.conv3_2 = nn.Conv2d(256, 255, 1, 1)
+        self.conv3_1 = Conv_Bn_Act(512, 1024, 3, 1, "leaky")
+        self.conv3_2 = nn.Conv2d(1024, 255, 1, 1)
 
     def forward(self, xa, xb, xc):
         xa = self.conv1_1(xa)
         xa = self.conv1_2(xa)
-        xb = self.conv1_1(xb)
-        xb = self.conv1_2(xb)
-        xc = self.conv1_1(xc)
-        xc = self.conv1_2(xc)
+        xb = self.conv2_1(xb)
+        xb = self.conv2_2(xb)
+        xc = self.conv3_1(xc)
+        xc = self.conv3_2(xc)
         return xa, xb, xc
 
 
@@ -235,3 +236,12 @@ class Yolov4(nn.Module):
         xa, xb, xc = self.neck(xa, xb, xc)
         xa, xb, xc = self.head(xa, xb, xc)
         return xa, xb, xc
+
+
+if __name__ == '__main__':
+    model = Yolov4().to("cuda" if torch.cuda.is_available() else "cpu")
+    Input = torch.rand(3, 608, 608).unsqueeze(0).to("cuda" if torch.cuda.is_available() else "cpu")
+    Output = model(Input)
+    print(f"Input size:\n    {Input.size()}")
+    print(f"Output size:\n    {[Output[0].size(), Output[1].size(), Output[2].size()]}")
+    summary(model, (3, 608, 608))
