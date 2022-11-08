@@ -70,7 +70,7 @@ def Mosaic(images, labels, size):
         cx = images[i].shape[0] // 2 - x
         cy = images[i].shape[1] // 2 - y
         px = size // 2 if i % 2 == 1 else 0
-        py = size // 2 if i // 2 == 1 else 0# tools 
+        py = size // 2 if i // 2 == 1 else 0
         ox = cx - px
         oy = cy - py
         s = size // 2
@@ -123,12 +123,12 @@ class Yolo_Dataset(Dataset):
                 images[i], labels[i] = Augment(images[i], labels[i])
             image, label = Mosaic(images, labels, 608)
             image = torch.from_numpy(image).permute(2, 0, 1)
-            label = torch.tensor(label)
+            label += [[0] * 5] * (20 - len(label))
+            label = torch.tensor(label, dtype=torch.float64)
             return image, label
 
         if self.kind == "test" or "train_raw":
-            image = cv2.imread(os.path.join(self.path, self.image[index]))
-            image = image / 255.
+            image = cv2.imread(os.path.join(self.path, self.image[index])) / 255.
             with open(os.path.join(self.path, self.label[index])) as f:
                 lines = f.readlines()
             label = []
@@ -142,15 +142,16 @@ class Yolo_Dataset(Dataset):
                 label.append(box)
             image, label = Padding(image, label, 608)
             image = torch.from_numpy(image).permute(2, 0, 1)
-            label = torch.tensor(label)
+            label += [[0] * 5] * (20 - len(label))
+            label = torch.tensor(label, dtype=torch.float64)
             return image, label
 
 
-def draw_boxes(image, boxes, tensor=False):
-    if tensor == True:
-        image = image.cpu().detach().numpy()
-        image = image.transpose(1, 2, 0)
-        boxes = boxes.tolist()
+def draw_boxes(image, boxes):
+    image = image.cpu().detach().numpy()
+    image = image.transpose(1, 2, 0)
+    boxes_n = (boxes.sum(dim=1) > 0).sum(dim=0)
+    boxes = boxes[:boxes_n].tolist()
     for box in boxes:
         box = [box[0], box[1]-box[3]/2, box[2]-box[4]/2, box[1]+box[3]/2, box[2]+box[4]/2]
         box = [int(c) for c in box]
@@ -172,13 +173,12 @@ def calc_anchors():
     boxes = []
     for i in tqdm(range(dataset.__len__())):
         _ , label = dataset.__getitem__(i)
-        boxes += label[:,3:].tolist()
+        boxes_n = (label.sum(dim=1) > 0).sum(dim=0)
+        boxes += label[:boxes_n, 3:].tolist()
     kmeans = KMeans(n_clusters=9).fit(boxes)
     anchors = np.rint(kmeans.cluster_centers_).astype(int).tolist()    
     anchors = sorted(anchors, key=lambda x: min(x[0], x[1]))
-    print(anchors)
-
-    # [[28, 28], [46, 45], [63, 66], [99, 74], [78, 115], [131, 110], [147, 161], [174, 269], [254, 175]]
+    print(anchors) # [[28, 28], [46, 45], [63, 66], [99, 74], [78, 115], [131, 110], [147, 161], [174, 269], [254, 175]]
 
 
 if __name__ == '__main__':
@@ -186,11 +186,11 @@ if __name__ == '__main__':
     test_dataset =  Yolo_Dataset("test")
     for i in range(10):
         img, lbl = train_dataset.__getitem__(random.randrange(0, 11000))
-        img = draw_boxes(img, lbl, tensor=True)
+        img = draw_boxes(img, lbl)
         show_image(img)    
     for i in range(10):
         img, lbl = test_dataset.__getitem__(random.randrange(0, 2200))
-        img = draw_boxes(img, lbl, tensor=True)
+        img = draw_boxes(img, lbl)
         show_image(img)    
 
 

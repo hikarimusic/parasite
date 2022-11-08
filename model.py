@@ -240,8 +240,8 @@ class Yolov4(nn.Module):
 
 if __name__ == '__main__':
     model = Yolov4().to("cuda" if torch.cuda.is_available() else "cpu")
-    Input = torch.rand(3, 608, 608).unsqueeze(0).to("cuda" if torch.cuda.is_available() else "cpu")
-    Output = model(Input)
-    print(f"Input size:\n    {Input.size()}")
-    print(f"Output size:\n    {[Output[0].size(), Output[1].size(), Output[2].size()]}")
+    input = torch.rand(3, 608, 608).unsqueeze(0).to("cuda" if torch.cuda.is_available() else "cpu")
+    output = model(input)
+    print(f"Input size:\n    {input.size()}")
+    print(f"Output size:\n    {[output[0].size(), output[1].size(), output[2].size()]}")
     summary(model, (3, 608, 608))
