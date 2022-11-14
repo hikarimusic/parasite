@@ -86,7 +86,7 @@ class Yolo_Dataset(Dataset):
     def __init__(self, kind):
         super().__init__()
         self.kind = kind
-        if self.kind == "train" or "train_raw" :
+        if self.kind == "train" or self.kind == "train_raw" :
             self.path = os.path.join(os.getcwd(), "data", "train")
         elif self.kind == "test":
             self.path = os.path.join(os.getcwd(), "data", "test")
@@ -127,7 +127,7 @@ class Yolo_Dataset(Dataset):
             label = torch.tensor(label, dtype=torch.float64)
             return image, label
 
-        if self.kind == "test" or "train_raw":
+        if self.kind == "test" or self.kind == "train_raw":
             image = cv2.imread(os.path.join(self.path, self.image[index])) / 255.
             with open(os.path.join(self.path, self.label[index])) as f:
                 lines = f.readlines()
@@ -156,7 +156,7 @@ def draw_boxes(image, boxes):
         box = [box[0], box[1]-box[3]/2, box[2]-box[4]/2, box[1]+box[3]/2, box[2]+box[4]/2]
         box = [int(c) for c in box]
         color = colorsys.hsv_to_rgb(box[0]/11, 1.0, 1.0)
-        cv2.rectangle(image, (box[1], box[2]), (box[3], box[4]), color[::-1], 1)
+        cv2.rectangle(image, (box[1], box[2]), (box[3], box[4]), color[::-1], 2)
     return image
 
 
@@ -187,15 +187,9 @@ if __name__ == '__main__':
     for i in range(10):
         img, lbl = train_dataset.__getitem__(random.randrange(0, 11000))
         img = draw_boxes(img, lbl)
-        show_image(img)    
+        show_image(img)        
     for i in range(10):
         img, lbl = test_dataset.__getitem__(random.randrange(0, 2200))
         img = draw_boxes(img, lbl)
         show_image(img)    
 
-
-
-
-
-
-    

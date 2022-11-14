@@ -239,9 +239,10 @@ class Yolov4(nn.Module):
 
 
 if __name__ == '__main__':
-    model = Yolov4().to("cuda" if torch.cuda.is_available() else "cpu")
-    input = torch.rand(3, 608, 608).unsqueeze(0).to("cuda" if torch.cuda.is_available() else "cpu")
-    output = model(input)
-    print(f"Input size:\n    {input.size()}")
-    print(f"Output size:\n    {[output[0].size(), output[1].size(), output[2].size()]}")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = Yolov4().to(device)
+    input_ = torch.rand(3, 608, 608).unsqueeze(0).to(device)
+    output_ = model(input_)
+    print(f"Input size:\n    {input_.size()}")
+    print(f"Output size:\n    {[output_[0].size(), output_[1].size(), output_[2].size()]}")
     summary(model, (3, 608, 608))
