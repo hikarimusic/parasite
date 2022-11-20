@@ -68,3 +68,15 @@ You can check whether GPU acceleration is available after setting up the environ
 >>> torch.cuda.is_available()
 True
 ```
+
+---
+
+## Cleanup CPU memory
+Find the process consuming memory:
+```sh
+nvidia-smi
+```
+Kill the process by PID:
+```sh
+sudo kill -9 PID
+```

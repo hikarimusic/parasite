@@ -4,8 +4,6 @@ import torch
 from torch.utils.data import Dataset
 import numpy as np
 import random
-import colorsys
-from tqdm import tqdm
 
 
 def Padding(image, label, size):
@@ -31,7 +29,6 @@ def Padding(image, label, size):
 
 
 def Augment(image, label):
-    # Flip
     flip = random.randint(0, 3)
     if flip == 1:
         image = cv2.flip(image, 0)
@@ -47,10 +44,8 @@ def Augment(image, label):
         elif flip == 3:
             label[i][1] = image.shape[1] - box[1]
             label[i][2] = image.shape[0] - box[2]
-    # Scale
     scale = int(random.uniform(608, 760))
     image, label = Padding(image, label, scale)
-    # Color
     image = cv2.cvtColor(image.astype(np.float32), cv2.COLOR_BGR2HSV)
     image[:,:,0] += random.uniform(-18, 18)
     image[:,:,1] *= random.uniform(0.8, 1.25)
@@ -122,9 +117,9 @@ class Yolo_Dataset(Dataset):
             for i in range(4):
                 images[i], labels[i] = Augment(images[i], labels[i])
             image, label = Mosaic(images, labels, 608)
-            image = torch.from_numpy(image).permute(2, 0, 1)
+            image = torch.from_numpy(image).permute(2, 0, 1).to(torch.float32)
             label += [[0] * 5] * (20 - len(label))
-            label = torch.tensor(label, dtype=torch.float64)
+            label = torch.tensor(label, dtype=torch.float32)
             return image, label
 
         if self.kind == "test" or self.kind == "train_raw":
@@ -141,47 +136,14 @@ class Yolo_Dataset(Dataset):
                 box[4] = int(box[4] * image.shape[0])
                 label.append(box)
             image, label = Padding(image, label, 608)
-            image = torch.from_numpy(image).permute(2, 0, 1)
+            image = torch.from_numpy(image).permute(2, 0, 1).to(torch.float32)
             label += [[0] * 5] * (20 - len(label))
-            label = torch.tensor(label, dtype=torch.float64)
+            label = torch.tensor(label, dtype=torch.float32)
             return image, label
 
 
-def draw_boxes(image, boxes):
-    image = image.cpu().detach().numpy()
-    image = image.transpose(1, 2, 0)
-    boxes_n = (boxes.sum(dim=1) > 0).sum(dim=0)
-    boxes = boxes[:boxes_n].tolist()
-    for box in boxes:
-        box = [box[0], box[1]-box[3]/2, box[2]-box[4]/2, box[1]+box[3]/2, box[2]+box[4]/2]
-        box = [int(c) for c in box]
-        color = colorsys.hsv_to_rgb(box[0]/11, 1.0, 1.0)
-        cv2.rectangle(image, (box[1], box[2]), (box[3], box[4]), color[::-1], 2)
-    return image
-
-
-def show_image(image, name="Image"):
-    cv2.namedWindow(name, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(name, 900, 900) 
-    cv2.imshow(name, image)
-    cv2.waitKey(0)   
-
-
-def calc_anchors():
-    from sklearn.cluster import KMeans
-    dataset = Yolo_Dataset("train_raw")
-    boxes = []
-    for i in tqdm(range(dataset.__len__())):
-        _ , label = dataset.__getitem__(i)
-        boxes_n = (label.sum(dim=1) > 0).sum(dim=0)
-        boxes += label[:boxes_n, 3:].tolist()
-    kmeans = KMeans(n_clusters=9).fit(boxes)
-    anchors = np.rint(kmeans.cluster_centers_).astype(int).tolist()    
-    anchors = sorted(anchors, key=lambda x: min(x[0], x[1]))
-    print(anchors) # [[28, 28], [46, 45], [63, 66], [99, 74], [78, 115], [131, 110], [147, 161], [174, 269], [254, 175]]
-
-
 if __name__ == '__main__':
+    from tools import draw_boxes, show_image
     train_dataset = Yolo_Dataset("train")
     test_dataset =  Yolo_Dataset("test")
     for i in range(10):
