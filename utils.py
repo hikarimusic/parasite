@@ -1,31 +1,31 @@
 import torch
 from torch import nn
-import math
 
 
 class Yolo_Detector(nn.Module):
     def __init__(self, batch, device):
         super().__init__()
-        self.grid = []
-        self.anchor = []
         self.batch = batch
-        self.size = [76, 38, 19]
-        anchors = {
+        self.device = device
+        self.grid = {}
+        self.anchor = {}
+        anchor_dict = {
             76 : [[28, 28], [46, 45], [64, 66]] ,
             38 : [[102, 74], [78, 115], [132, 113]] ,
             19 : [[149, 163], [174, 268], [257, 176]]
         }
-        self.device = device
-        for size in self.size:
+        for size in anchor_dict.keys():
             grid_x = torch.linspace(0, size-1, size).view(1, 1, size, 1, 1).repeat(batch, size, 1, 3, 1)
             grid_y = torch.linspace(0, size-1, size).view(1, size, 1, 1, 1).repeat(batch, 1, size, 3, 1)
-            self.grid.append(torch.cat([grid_x, grid_y], dim=4).to(self.device)) # [batch, size, size, anchor, xy]
-            anchor_w = [torch.full([batch, size, size, 1, 1], anchors[size][i][0]) for i in range(3)]
+            grid = torch.cat([grid_x, grid_y], dim=4)
+            anchor_w = [torch.full([batch, size, size, 1, 1], anchor_dict[size][i][0]) for i in range(3)]
             anchor_w = torch.cat(anchor_w, dim=3)
-            anchor_h = [torch.full([batch, size, size, 1, 1], anchors[size][i][1]) for i in range(3)]
+            anchor_h = [torch.full([batch, size, size, 1, 1], anchor_dict[size][i][1]) for i in range(3)]
             anchor_h = torch.cat(anchor_h, dim=3)
-            self.anchor.append(torch.cat([anchor_w, anchor_h], dim=4).to(self.device)) # [batch, size, size, anchor, wh]
-    
+            anchor = torch.cat([anchor_w, anchor_h], dim=4)
+            self.grid[size] = (grid.to(self.device))
+            self.anchor[size] = (anchor.to(self.device))
+
     def NMS(self, boxes, scores, conf_thresh, nms_thresh):
         xy_1 = boxes[:, :2] - boxes[:, 2:] / 2
         xy_2 = boxes[:, :2] + boxes[:, 2:] / 2
@@ -39,7 +39,7 @@ class Yolo_Detector(nn.Module):
             idx_b = order
             inter_1 = torch.maximum(xy_1[idx_a, :], xy_1[idx_b, :])
             inter_2 = torch.minimum(xy_2[idx_a, :], xy_2[idx_b, :])
-            inter = torch.clamp(inter_2 - inter_1, min=0)
+            inter = torch.clamp(inter_2 - inter_1, 0)
             outer_1 = torch.minimum(xy_1[idx_a, :], xy_1[idx_b, :])
             outer_2 = torch.maximum(xy_2[idx_a, :], xy_2[idx_b, :])
             outer = torch.clamp(outer_2 - outer_1, min=0)
@@ -54,12 +54,12 @@ class Yolo_Detector(nn.Module):
     def forward(self, x, conf_thresh=0.4, nms_thresh=0.6):
         predict = []
         for i in range(3):
-            output = x[i].reshape(self.batch, 3, 85, self.size[i], self.size[i]).permute(0, 3, 4, 1, 2) # [batch, size, size, anchor, channel]
-            output[:, :, :, :, 0:2] = torch.sigmoid(output[:, :, :, :, 0:2]) * 1.05 - 0.025 + self.grid[i] # scale_x_y = 1.05
+            output = x[i].reshape(self.batch, 3, 85, self.size[i], self.size[i]).permute(0, 3, 4, 1, 2)
+            output[:, :, :, :, 0:2] = torch.sigmoid(output[:, :, :, :, 0:2]) * 1.05 - 0.025 + self.grid[i]
             output[:, :, :, :, 0:2] *= 608 // self.size[i]
             output[:, :, :, :, 2:4] = torch.exp(output[:, :, :, :, 2:4]) * self.anchor[i]
             output[:, :, :, :, 4: ] = torch.sigmoid(output[:, :, :, :, 4: ])
-            output = output.reshape(self.batch, self.size[i]*self.size[i]*3, 85) # [batch, n_box, channel]
+            output = output.reshape(self.batch, self.size[i]*self.size[i]*3, 85)
             predict.append(output)
         predict = torch.cat(predict, dim=1)
         predict[:, :, 5:] *= predict[:, :, 4:5].repeat(1, 1, 80)
@@ -100,7 +100,7 @@ class Yolo_Loss(nn.Module):
             self.anchor[size] = (anchor.to(self.device))
             self.reference[size] = (reference.to(self.device))
 
-    def IoU(self, boxes_a, boxes_b, align=False, cross=True, CIoU=False):
+    def IoU(self, boxes_a, boxes_b, align=False, cross=True, DIoU=False):
         if align == True:
             boxes_a = torch.cat([boxes_a / 2, boxes_a], dim=1)
             boxes_b = torch.cat([boxes_b / 2, boxes_b], dim=1)
@@ -115,19 +115,17 @@ class Yolo_Loss(nn.Module):
         area_a = boxes_a[..., 2] * boxes_a[..., 3]
         area_b = boxes_b[..., 2] * boxes_b[..., 3]
         area_i = inter[..., 0] * inter[..., 1]
-        area_u = area_a + area_b - area_i
+        area_u = area_a + area_b - area_i + 1e-9
         iou = area_i / area_u
-        if CIoU == False:
+        if DIoU == False:
             return iou
         outer_1 = torch.minimum(Boxes_a[..., :2], Boxes_b[..., :2])
         outer_2 = torch.maximum(Boxes_a[..., 2:], Boxes_b[..., 2:])
         outer = torch.clamp(outer_2 - outer_1, min=0)
         r2 = torch.pow(boxes_a[..., :2] - boxes_b[..., :2], 2).sum(dim=-1)
-        c2 = torch.pow(outer, 2).sum(dim=-1)
-        v = torch.atan(boxes_a[..., 2] / boxes_a[..., 3]) - torch.atan(boxes_b[..., 2] / boxes_b[..., 3])
-        v = (4 / math.pi ** 2) * torch.pow(v, 2)
-        alpha = v / (1 - iou + v)
-        return iou - (r2 / c2 + v * alpha)
+        c2 = torch.pow(outer, 2).sum(dim=-1) + 1e-9
+        diou = iou - r2 / c2
+        return diou
 
     def forward(self, predict, label, pos_thresh=0.2, neg_thresh=0.7):
         loss_box, loss_obj, loss_cls = 0, 0, 0
@@ -158,12 +156,11 @@ class Yolo_Loss(nn.Module):
                 neg_ind = (torch.max(neg_iou, 1)[0] < neg_thresh).view(size, size, 3)
                 neg_mask[b, neg_ind] = True
             if pos_mask.sum() == 0 or neg_mask.sum() == 0: continue
-            loss_box += (1 - self.IoU(output[pos_mask][:, :4], target[pos_mask][:, :4], cross=False, CIoU=True)).sum()
+            loss_box += (1 - self.IoU(output[pos_mask][:, :4], target[pos_mask][:, :4], cross=False, DIoU=True)).sum()
             loss_obj += nn.functional.binary_cross_entropy(output[pos_mask][:, 4], target[pos_mask][:, 4], reduction='sum')
             loss_obj += nn.functional.binary_cross_entropy(output[neg_mask][:, 4], target[neg_mask][:, 4], reduction='sum') * 0.5
             loss_cls += nn.functional.binary_cross_entropy(output[pos_mask][:, 5:], target[pos_mask][:, 5:], reduction='sum')
         loss = loss_box + loss_obj + loss_cls
-        #print(loss, loss_box, loss_obj, loss_cls)
         return loss, loss_box, loss_obj, loss_cls
 
 

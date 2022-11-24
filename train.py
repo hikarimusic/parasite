@@ -13,15 +13,15 @@ SAVE_WEIGHT = None
 EPOCHS = 1
 BATCH_SIZE = 64
 SUBDIVISION = 32
-LEARN_RATE = 0.01
+LEARN_RATE = 0.001
 MOMENTUM = 0.9
 WEIGHT_DECAY = 5e-4
 
 
 def train(Data, Model, Loss):
     Model.to(DEVICE).train()
-    #Optimizer = torch.optim.SGD(Model.parameters(), lr=LEARN_RATE, momentum=MOMENTUM, weight_decay=WEIGHT_DECAY)
-    Optimizer = torch.optim.Adam(Model.parameters(), lr=LEARN_RATE)
+    Optimizer = torch.optim.SGD(Model.parameters(), lr=LEARN_RATE, momentum=MOMENTUM, weight_decay=WEIGHT_DECAY)
+    #Optimizer = torch.optim.Adam(Model.parameters(), lr=LEARN_RATE)
     loss_batch = 0
     for batch, data in enumerate(Data):
         image = data[0].to(DEVICE)
@@ -29,18 +29,13 @@ def train(Data, Model, Loss):
         predict = Model(image)
         loss, loss_box, loss_obj, loss_cls = Loss(predict, label)
         loss.backward()
-        loss_batch += loss.item()
+        loss_batch += loss.item() / (BATCH_SIZE//SUBDIVISION)
         print(f"\rloss: {loss_batch/(batch%SUBDIVISION+1):>7f}  [{(batch+1) * len(label):>5d}/{len(Data.dataset):>5d}]", end="")
-        '''
         if (batch+1) % SUBDIVISION == 0:
             Optimizer.step()
             Optimizer.zero_grad()
             loss_batch = 0
             print("")
-        
-        '''
-        Optimizer.step()
-        Optimizer.zero_grad()
 
 
 if __name__ == '__main__':
