@@ -59,6 +59,12 @@ Install the required python packages by pip.
 pip install -r requirements.txt
 ```
 
+Install tkinter as GUI backend of matplotlib.
+
+```sh
+sudo apt-get install python3-tk
+```
+
 ## Check 
 
 You can check whether GPU acceleration is available after setting up the environment.
@@ -72,11 +78,15 @@ True
 ---
 
 ## Cleanup CPU memory
+
 Find the process consuming memory:
+
 ```sh
 nvidia-smi
 ```
+
 Kill the process by PID:
+
 ```sh
 sudo kill -9 PID
 ```

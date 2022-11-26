@@ -51,26 +51,28 @@ class Yolo_Detector(nn.Module):
             order = order[diou < nms_thresh]
         return keep
 
-    def forward(self, x, conf_thresh=0.4, nms_thresh=0.6):
-        predict = []
-        for i in range(3):
-            output = x[i].reshape(self.batch, 3, 85, self.size[i], self.size[i]).permute(0, 3, 4, 1, 2)
-            output[:, :, :, :, 0:2] = torch.sigmoid(output[:, :, :, :, 0:2]) * 1.05 - 0.025 + self.grid[i]
-            output[:, :, :, :, 0:2] *= 608 // self.size[i]
-            output[:, :, :, :, 2:4] = torch.exp(output[:, :, :, :, 2:4]) * self.anchor[i]
+    def forward(self, predict, conf_thresh=0.4, nms_thresh=0.6):
+        output_ = []
+        for output in predict:
+            batch = output.shape[0]
+            size = output.shape[2]
+            output = output.reshape(self.batch, 3, 85, size, size).permute(0, 3, 4, 1, 2)
+            output[:, :, :, :, 0:2] = torch.sigmoid(output[:, :, :, :, 0:2]) * 1.05 - 0.025 + self.grid[size]
+            output[:, :, :, :, 0:2] *= 608 // size
+            output[:, :, :, :, 2:4] = torch.exp(output[:, :, :, :, 2:4]) * self.anchor[size]
             output[:, :, :, :, 4: ] = torch.sigmoid(output[:, :, :, :, 4: ])
-            output = output.reshape(self.batch, self.size[i]*self.size[i]*3, 85)
-            predict.append(output)
-        predict = torch.cat(predict, dim=1)
-        predict[:, :, 5:] *= predict[:, :, 4:5].repeat(1, 1, 80)
-        predict_ = []
+            output = output.reshape(batch, size*size*3, 85)
+            output_.append(output)
+        output_ = torch.cat(output_, dim=1)
+        output_[:, :, 5:] *= output_[:, :, 4:5].repeat(1, 1, 80)
+        detection = []
         for b in range(self.batch):
             boxes = []
             for c in range(80):
-                keep = self.NMS(predict[b, :, :4], predict[b, :, c+5], conf_thresh, nms_thresh)
-                boxes.append(torch.cat([torch.full([len(keep), 1], c).to(self.device), predict[b, keep, :4]], dim=1))
-            predict_.append(torch.cat(boxes, dim=0))                
-        return predict_
+                keep = self.NMS(output_[b, :, :4], output_[b, :, c+5], conf_thresh, nms_thresh)
+                boxes.append(torch.cat([output_[b, keep, :4], output_[b, keep, :c+5], torch.full([len(keep), 1], c).to(self.device)], dim=1))
+            detection.append(torch.cat(boxes, dim=0))                
+        return detection
 
 
 class Yolo_Loss(nn.Module):
@@ -165,10 +167,7 @@ class Yolo_Loss(nn.Module):
 
 
 if __name__ == '__main__':
-    '''
-    -------------
-    Yolo_Detector
-    -------------
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
     detector = Yolo_Detector(batch=16, device=device)
     input_ = [((torch.rand(16, 255, s, s)-0.5)*1.09).to(device) for s in [76, 38, 19]]
@@ -181,18 +180,21 @@ if __name__ == '__main__':
         img, lbl = test_dataset.__getitem__(random.randrange(0, 11000))
         img = draw_boxes(img, output_[i])
         show_image(img)     
-    '''
+
     '''
     criterion = Yolo_Loss()
     boxes_a = torch.tensor([[100., 100., 100., 100.]])
     boxes_b = torch.tensor([[150., 150., 100., 100.]])
     print(criterion.IoU(boxes_a, boxes_b, CIoU=True))
     '''
+    '''
     device = "cuda" if torch.cuda.is_available() else "cpu"
     Loss = Yolo_Loss(16, device)
     predict = [(torch.rand(16, 255, s, s)-0.5).to(device) for s in [76, 38, 19]]
     label = [torch.randint(0, 80, (16, 4, 1)), torch.randint(0, 608, (16, 4, 2)), torch.randint(100, 150, (16, 4, 2))]
-    label = torch.cat(label, dim=2).to(dtype=torch.float32, device=device)
+    label = torch.cat(label, dim=2).to(dtype=torch.float, device=device)
     loss, loss_box, loss_obj, loss_cls= Loss(predict, label)
     print(loss, loss_box, loss_obj, loss_cls)
+    
+    '''
 

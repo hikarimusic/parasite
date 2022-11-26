@@ -117,9 +117,9 @@ class Yolo_Dataset(Dataset):
             for i in range(4):
                 images[i], labels[i] = Augment(images[i], labels[i])
             image, label = Mosaic(images, labels, 608)
-            image = torch.from_numpy(image).permute(2, 0, 1).to(torch.float32)
+            image = torch.from_numpy(image).permute(2, 0, 1).to(torch.float)
             label += [[0] * 5] * (20 - len(label))
-            label = torch.tensor(label, dtype=torch.float32)
+            label = torch.tensor(label, dtype=torch.float)
             return image, label
 
         if self.kind == "test" or self.kind == "train_raw":
@@ -136,9 +136,9 @@ class Yolo_Dataset(Dataset):
                 box[4] = int(box[4] * image.shape[0])
                 label.append(box)
             image, label = Padding(image, label, 608)
-            image = torch.from_numpy(image).permute(2, 0, 1).to(torch.float32)
+            image = torch.from_numpy(image).permute(2, 0, 1).to(torch.float)
             label += [[0] * 5] * (20 - len(label))
-            label = torch.tensor(label, dtype=torch.float32)
+            label = torch.tensor(label, dtype=torch.float)
             return image, label
 
 
