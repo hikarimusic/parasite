@@ -1,8 +1,9 @@
 import torch
 import numpy as np
+import pandas as pd
 
 
-class Evaluator():
+class YOLO_Evaluator():
     def __init__(self, classes):
         super().__init__()
         self.classes = classes
@@ -10,6 +11,7 @@ class Evaluator():
         self.labels = []
         self.corrects = []
         self.confusion = np.zeros([len(classes)+1, len(classes)+1])
+        self.counts = {"TP": 0, "FP": 0, "FN": 0}
     
     def IoU(self, boxes_a, boxes_b):
         boxes_a = boxes_a.view(boxes_a.shape[0], 1, 4).repeat(1, boxes_b.shape[0], 1)
@@ -55,16 +57,43 @@ class Evaluator():
         matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
         for i in range(matches.shape[0]):
             self.confusion[detect_cls[i, 1], detect_cls[i, 0]] += 1
-        for i, gc in enumerate(label_cls):
-            if not any(label_cls[:, 0] == i):
-                self.confusion[len(self.classes), gc] += 1
+            self.counts["TP"] += 1
         for i, dc in enumerate(detect_cls):
             if not any(detect_cls[:, 1] == i):
                 self.confusion[dc, len(self.classes)] += 1
+                self.counts["FP"] += 1
+        for i, gc in enumerate(label_cls):
+            if not any(label_cls[:, 0] == i):
+                self.confusion[len(self.classes), gc] += 1
+                self.counts["FN"] += 1
 
     def compute(self):
-        self.detections = torch.cat(self.detections, 0).cpu().numpy()
-        self.labels = torch.cat(self.labels, 0).cpu().numpy()
-        self.corrects = torch.cat(self.corrects, 0).cpu().numpy()
+        detections = torch.cat(self.detections, 0).cpu().numpy()
+        labels = torch.cat(self.labels, 0).cpu().numpy()
+        corrects = torch.cat(self.corrects, 0).cpu().numpy()
+        order = np.argsort(detections[:, 4])
+        detections = detections[order]
+        corrects = corrects[order]
+        classes, class_cnt = np.unique(labels, return_counts=True)
+        #conf_x = np.linspace(0, 1, 1000)
+        #p, r, ap = np.zeros([classes.shape[0], 1000]), np.zeros([classes.shape[0], 1000]), np.zeros([classes.shape[0], 10])
+        for ci, c in enumerate(classes):
+            i = detections[:, 5] == c
+            tpc = corrects[i].cumsum(0)
+            fpc = (1 - corrects[i]).cumsum(0)
+            recall = tpc / (class_cnt[ci] + 1e-16)
+            precision = tpc / (tpc + fpc + 1e-16)
+
+
+
+        self.result = []
+        self.p_plot = []
+        self.r_plot = []
+        self.f1_plot = []
+        self.ap_plot = []
+        self.confusion_plot = []
+
+
+
 
 

@@ -1,10 +1,11 @@
+import torch
 import cv2
 import numpy as np
 import colorsys
 from tqdm import tqdm
 
 
-def draw_boxes(image, boxes):
+def draw_boxes(image, boxes, conf=False):
     image = image.cpu().detach().numpy()
     image = image.transpose(1, 2, 0)
     boxes_n = (boxes.sum(dim=1) > 0).sum(dim=0)
@@ -12,6 +13,8 @@ def draw_boxes(image, boxes):
     for box in boxes:
         box = [box[0], box[1]-box[3]/2, box[2]-box[4]/2, box[1]+box[3]/2, box[2]+box[4]/2]
         box = [int(c) for c in box]
+        #print(type(box[0]))
+        #print(box)
         color = colorsys.hsv_to_rgb(box[0]/11, 1.0, 1.0)
         cv2.rectangle(image, (box[1], box[2]), (box[3], box[4]), color[::-1], 2)
     return image

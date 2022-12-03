@@ -132,3 +132,6 @@ dmypy.json
 # Data
 data/test
 data/train
+
+# Weights
+*.pt

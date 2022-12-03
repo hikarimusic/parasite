@@ -70,7 +70,7 @@ class Yolo_Detector(nn.Module):
             boxes = []
             for c in range(80):
                 keep = self.NMS(output_[b, :, :4], output_[b, :, c+5], conf_thresh, nms_thresh)
-                boxes.append(torch.cat([output_[b, keep, :4], output_[b, keep, :c+5], torch.full([len(keep), 1], c).to(self.device)], dim=1))
+                boxes.append(torch.cat([torch.full([len(keep), 1], c).to(self.device), output_[b, keep, :4], output_[b, keep, c+5:c+6]], dim=1))
             detection.append(torch.cat(boxes, dim=0))                
         return detection
 
@@ -117,16 +117,16 @@ class Yolo_Loss(nn.Module):
         area_a = boxes_a[..., 2] * boxes_a[..., 3]
         area_b = boxes_b[..., 2] * boxes_b[..., 3]
         area_i = inter[..., 0] * inter[..., 1]
-        area_u = area_a + area_b - area_i + 1e-9
-        iou = area_i / area_u
+        area_u = area_a + area_b - area_i
+        iou = area_i / (area_u + 1e-7)
         if DIoU == False:
             return iou
         outer_1 = torch.minimum(Boxes_a[..., :2], Boxes_b[..., :2])
         outer_2 = torch.maximum(Boxes_a[..., 2:], Boxes_b[..., 2:])
         outer = torch.clamp(outer_2 - outer_1, min=0)
         r2 = torch.pow(boxes_a[..., :2] - boxes_b[..., :2], 2).sum(dim=-1)
-        c2 = torch.pow(outer, 2).sum(dim=-1) + 1e-9
-        diou = iou - r2 / c2
+        c2 = torch.pow(outer, 2).sum(dim=-1)
+        diou = iou - r2 / (c2 + 1e-7)
         return diou
 
     def forward(self, predict, label, pos_thresh=0.2, neg_thresh=0.7):
@@ -158,10 +158,10 @@ class Yolo_Loss(nn.Module):
                 neg_ind = (torch.max(neg_iou, 1)[0] < neg_thresh).view(size, size, 3)
                 neg_mask[b, neg_ind] = True
             if pos_mask.sum() == 0 or neg_mask.sum() == 0: continue
-            loss_box += (1 - self.IoU(output[pos_mask][:, :4], target[pos_mask][:, :4], cross=False, DIoU=True)).sum()
-            loss_obj += nn.functional.binary_cross_entropy(output[pos_mask][:, 4], target[pos_mask][:, 4], reduction='sum')
-            loss_obj += nn.functional.binary_cross_entropy(output[neg_mask][:, 4], target[neg_mask][:, 4], reduction='sum') * 0.5
-            loss_cls += nn.functional.binary_cross_entropy(output[pos_mask][:, 5:], target[pos_mask][:, 5:], reduction='sum')
+            loss_box += (1 - self.IoU(output[pos_mask][:, :4], target[pos_mask][:, :4], cross=False, DIoU=True)).mean() / batch
+            loss_obj += nn.functional.binary_cross_entropy(output[pos_mask][:, 4], target[pos_mask][:, 4]) / batch
+            loss_obj += nn.functional.binary_cross_entropy(output[neg_mask][:, 4], target[neg_mask][:, 4]) / batch
+            loss_cls += nn.functional.binary_cross_entropy(output[pos_mask][:, 5:], target[pos_mask][:, 5:]) / batch
         loss = loss_box + loss_obj + loss_cls
         return loss, loss_box, loss_obj, loss_cls
 
@@ -172,12 +172,16 @@ if __name__ == '__main__':
     detector = Yolo_Detector(batch=16, device=device)
     input_ = [((torch.rand(16, 255, s, s)-0.5)*1.09).to(device) for s in [76, 38, 19]]
     output_ = detector(input_)
+    
     import random
     from dataset import Yolo_Dataset
     from tools import draw_boxes, show_image
     test_dataset =  Yolo_Dataset("train_raw")
     for i in range(16):
         img, lbl = test_dataset.__getitem__(random.randrange(0, 11000))
+
+        print(img.shape)
+
         img = draw_boxes(img, output_[i])
         show_image(img)     
 

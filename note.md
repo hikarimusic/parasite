@@ -75,11 +75,45 @@ You can check whether GPU acceleration is available after setting up the environ
 True
 ```
 
----
+# Ubuntu on Windows
 
-## Cleanup CPU memory
+You can run a Linux environment on Windows11 using WSL.
 
-Find the process consuming memory:
+## Install Linux distribution
+
+List available distributions:
+
+```sh
+wsl --list -o
+```
+
+Install a distribution (ex: Ubuntu-20.04):
+
+```sh
+wsl install -d <Distro>
+```
+
+You can enter the Ubuntu terminal from the Ubuntu app. You can get the information of your Ubuntu OS by neofetch (installed by `sudo apt install neofetch htop`):
+
+```sh
+:~$ neofetch
+```
+
+## Install NVIDIA driver
+
+Go to NVIDIA's [official site](https://www.nvidia.com/download/index.aspx) to download the appropriate driver (choose Windows11 as the OS). Run the exe. file to install the driver.
+
+You can test whether the driver is successfully installed (in Ubuntu):
+
+```sh
+:~$ nvidia-smi
+```
+
+# Tips
+
+## Cleanup GPU memory
+
+Find the process consuming up memory:
 
 ```sh
 nvidia-smi
@@ -88,5 +122,5 @@ nvidia-smi
 Kill the process by PID:
 
 ```sh
-sudo kill -9 PID
+sudo kill -9 <PID>
 ```
