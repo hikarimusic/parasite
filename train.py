@@ -69,7 +69,7 @@ def parse_opt():
     parser.add_argument('--dir', type=str, default=os.path.join(os.getcwd(), 'result', 'train'))
     parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=64)
-    parser.add_argument('--subdivision', type=int, default=32)
+    parser.add_argument('--subdivision', type=int, default=8)
     parser.add_argument('--optimizer', type=str, choices=['SGD', 'Adam'], default='SGD')
     parser.add_argument('--learn_rate', type=float, default=0.01)
     parser.add_argument('--momentum', type=float, default=0.9)

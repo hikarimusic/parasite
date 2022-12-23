@@ -109,6 +109,20 @@ You can test whether the driver is successfully installed (in Ubuntu):
 :~$ nvidia-smi
 ```
 
+## Others
+
+You can access C:/ of Windows from `/mnt/c/`
+
+```sh
+:~$ cd /mnt/c/
+```
+
+VSCode should be installed in Windows. It can be called directly in Ubuntu.
+
+```sh
+:~$ code .
+```
+
 # Tips
 
 ## Cleanup GPU memory
